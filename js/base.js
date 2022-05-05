@@ -1,8 +1,3 @@
-//This file contains example training data and samples
-
-
-//some sample data we'll be using
-//http://www.cise.ufl.edu/~ddd/cap6635/Fall-97/Short-papers/2.htm
 var base = [
     {dia:'D1',clima:'Ensolarado', temp:'Quente', humidade:'Alta', vento: 'Fraco',jogo:'Não'},
     {dia:'D2',clima:'Ensolarado', temp:'Quente', humidade:'Alta', vento: 'Forte',jogo:'Não'},
