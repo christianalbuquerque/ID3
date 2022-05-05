@@ -1,159 +1,171 @@
-var id3 = function(_s,target,features){
-    var targets = _.unique(_s.pluck(target));
-    console.log(targets.length)
-    if (targets.length == 1){
-	console.log("end node! "+targets[0]);
-	return {type:"result", val: targets[0], name: targets[0],alias:targets[0]+randomTag() }; 
-    }
-    if(features.length == 0){
-	console.log("returning the most dominate feature!!!");
-	var topTarget = mostCommon(_s.pluck(target));
-	return {type:"result", val: topTarget, name: topTarget, alias: topTarget+randomTag()};
-    }
-    var bestFeature = maxGain(_s,target,features);
-    var remainingFeatures = _.without(features,bestFeature);
-    var possibleValues = _.unique(_s.pluck(bestFeature));
-    console.log("node for "+bestFeature);
-    var node = {name: bestFeature,alias: bestFeature+randomTag()};
-    node.type = "feature";
-    node.vals = _.map(possibleValues,function(v){
-	console.log("creating a branch for "+v);
-	var _newS = _(_s.filter(function(x) {return x[bestFeature] == v}));
-	var child_node = {name:v,alias:v+randomTag(),type: "feature_value"};
-	child_node.child =  id3(_newS,target,remainingFeatures);
-	return child_node;
-	
+var id3 = function (base, alvo, propriedades) { // Base é nossa base de dados. Alvo é a propriedade verificada. Propriedades são as analisadas do base
+  var alvos = _.unique(base.pluck(alvo));
+  console.log(alvos.length); //Quantidade de Valores vindos do alvo
+  if (alvos.length == 1) {
+    console.log("Fim do Nó! " + alvos[0]);
+    return {
+      type: "result",
+      val: alvos[0],
+      name: alvos[0],
+      alias: alvos[0]
+    };
+  }
+  if (propriedades.length == 0) {
+    console.log("Retornando propriedade mais dominante!!!");
+    var alvoDom = maisComum(base.pluck(alvo));
+    return {
+      type: "result",
+      val: alvoDom,
+      name: alvoDom,
+      alias: alvoDom
+    };
+  }
+  var melhorPropriedade = ganhoMaximo(base, alvo, propriedades);
+  var propriedadesRestantes = _.without(propriedades, melhorPropriedade);
+  var valoresPossiveis = _.unique(base.pluck(melhorPropriedade));
+  console.log("Nó: " + melhorPropriedade);
+  var node = { name: melhorPropriedade, alias: melhorPropriedade };
+  node.type = "feature";
+  node.vals = _.map(valoresPossiveis, function (v) {
+    console.log("Criando ramificação para: " + v);
+    var novaBase = _(
+      base.filter(function (x) {
+        return x[melhorPropriedade] == v;
+      })
+    );
+    var no_filho = { name: v, alias: v, type: "feature_value" };
+    no_filho.child = id3(novaBase, alvo, propriedadesRestantes);
+    return no_filho;
+  });
+  return node;
+};
+
+var predicao = function (modeloId3, amostra) {
+  var raiz = modeloId3;
+  while (raiz.type != "result") {
+    var attr = raiz.name;
+    var amostraVal = amostra[attr];
+    var noFihlo = _.detect(raiz.vals, function (x) {
+      return x.name == amostraVal;
     });
-    return node;
-}
+    raiz = noFihlo.child;
+  }
+  return raiz.val;
+};
 
-var predict = function(id3Model,sample) {
-    var root = id3Model;
-    while(root.type != "result"){
-	var attr = root.name;
-	var sampleVal = sample[attr];
-	var childNode = _.detect(root.vals,function(x){return x.name == sampleVal});
-	root = childNode.child;
-    }
-    return root.val;
-}
+//Funções matematicas
 
+var entropia = function (vals) {
+  var valoresUnicos = _.unique(vals);
+  var probabilidades = valoresUnicos.map(function (x) {
+    return probabilidade(x, vals);
+  });
+  var valorLog = probabilidades.map(function (p) {
+    return -p * log2(p);
+  });
+  return valorLog.reduce(function (a, b) {
+    return a + b;
+  }, 0);
+};
 
-
-//necessary math functions
-
-var entropy = function(vals){
-    var uniqueVals = _.unique(vals);
-    var probs = uniqueVals.map(function(x){return prob(x,vals)});
-    var logVals = probs.map(function(p){return -p*log2(p) });
-    return logVals.reduce(function(a,b){return a+b},0);
-}
-
-var gain = function(_s,target,feature){
-    var attrVals = _.unique(_s.pluck(feature));
-    var setEntropy = entropy(_s.pluck(target));
-    var setSize = _s.size();
-    var entropies = attrVals.map(function(n){
-	var subset = _s.filter(function(x){return x[feature] === n});
-	return (subset.length/setSize)*entropy(_.pluck(subset,target));
+var ganho = function (base, alvo, feature) {
+  var valorAtr = _.unique(base.pluck(feature));
+  var definirEntropia = entropia(base.pluck(alvo));
+  var definirTamanho = base.size();
+  var entropias = valorAtr.map(function (n) {
+    var subconjunto = base.filter(function (x) {
+      return x[feature] === n;
     });
-    var sumOfEntropies =  entropies.reduce(function(a,b){return a+b},0);
-    return setEntropy - sumOfEntropies;
-}
+    return (subconjunto.length / definirTamanho) * entropia(_.pluck(subconjunto, alvo));
+  });
+  var somaDasEntropias = entropias.reduce(function (a, b) {
+    return a + b;
+  }, 0);
+  return definirEntropia - somaDasEntropias;
+};
 
-var maxGain = function(_s,target,features){
-    return _.max(features,function(e){return gain(_s,target,e)});
-}
+var ganhoMaximo = function (base, alvo, propriedades) {
+  return _.max(propriedades, function (e) {
+    return ganho(base, alvo, e);
+  });
+};
 
-var prob = function(val,vals){
-    var instances = _.filter(vals,function(x) {return x === val}).length;
-    var total = vals.length;
-    return instances/total;
-}
+var probabilidade = function (val, vals) {
+  var istancias = _.filter(vals, function (x) {
+    return x === val;
+  }).length;
+  var total = vals.length;
+  return istancias / total;
+};
 
-var log2 = function(n){
-    return Math.log(n)/Math.log(2);
-}
+var log2 = function (n) {
+  return Math.log(n) / Math.log(2);
+};
+
+var maisComum = function (l) {
+  return _.sortBy(l, function (a) {
+    return contador(a, l);
+  }).reverse()[0];
+};
+
+var contador = function (a, l) {
+  return _.filter(l, function (b) {
+    return b === a;
+  }).length;
+};
 
 
-var mostCommon = function(l){
-   return  _.sortBy(l,function(a){
-	return count(a,l);
-    }).reverse()[0];
-}
+//Parte Gráfica
 
-var count = function(a,l){
-    return _.filter(l,function(b) { return b === a}).length
-}
-
-var randomTag = function(){
-    return "_r"+Math.round(Math.random()*1000000).toString();
-}
-
-//Display logic
-
-var drawGraph = function(id3Model,divId){
-    var g = new Array();
-    g = addEdges(id3Model,g).reverse();
-    window.g = g;
-    var data = google.visualization.arrayToDataTable(g.concat(g));
-    var chart = new google.visualization.OrgChart(document.getElementById(divId));
-    google.visualization.events.addListener(chart, 'ready',function(){
-    _.each($('.google-visualization-orgchart-node'),function(x){
-	var oldVal = $(x).html();
-	if(oldVal){
-	    var cleanVal = oldVal.replace(/_r[0-9]+/,'');
-	    $(x).html(cleanVal);
-	}
-}); 
+var desenharGrafico = function (modeloId3, divId) {
+  var g = new Array();
+  g = addArestas(modeloId3, g).reverse();
+  window.g = g;
+  var data = google.visualization.arrayToDataTable(g.concat(g));
+  var chart = new google.visualization.OrgChart(document.getElementById(divId));
+  google.visualization.events.addListener(chart, "ready", function () {
+    _.each($(".google-visualization-orgchart-node"), function (x) {
+      var oldVal = $(x).html();
+      if (oldVal) {
+        var cleanVal = oldVal.replace(/_r[0-9]+/, "");
+        $(x).html(cleanVal);
+      }
     });
-    chart.draw(data, {allowHtml: true});
+  });
+  chart.draw(data, { allowHtml: true });
+};
 
-}
-
-var addEdges = function(node,g){
-    if(node.type == 'feature'){
-	_.each(node.vals,function(m){
-	    g.push([m.alias,node.alias,'']);
-	    g = addEdges(m,g);
-	});
-	return g;
-    }
-    if(node.type == 'feature_value'){
-
-	g.push([node.child.alias,node.alias,'']);
-	if(node.child.type != 'result'){
-	    g = addEdges(node.child,g);
-	}
-	return g;
+var addArestas = function (node, g) {
+  if (node.type == "feature") {
+    _.each(node.vals, function (m) {
+      g.push([m.alias, node.alias, ""]);
+      g = addArestas(m, g);
+    });
+    return g;
+  }
+  if (node.type == "feature_value") {
+    g.push([node.child.alias, node.alias, ""]);
+    if (node.child.type != "result") {
+      g = addArestas(node.child, g);
     }
     return g;
-}
+  }
+  return g;
+};
 
-
-var renderSamples = function(samples,$el,model,target,features){
-    _.each(samples,function(s){
-	var features_for_sample = _.map(features,function(x){return s[x]});
-	$el.append("<tr><td>"+features_for_sample.join('</td><td>')+"</td><td><b>"+predict(model,s)+"</b></td><td>Atual: "+s[target]+"</td></tr>");
-    })
-}
-
-var renderTrainingData = function(_training,$el,target,features){
-    _training.each(function(s){
-	$el.append("<tr><td>"+_.map(features,function(x){return s[x]}).join('</td><td>')+"</td><td>"+s[target]+"</td></tr>");
-    })
-}
-
-var calcError = function(samples,model,target){
-    var total = 0;
-    var correct = 0;
-    _.each(samples,function(s){
-	total++;
-	var pred = predict(model,s);
-	var actual = s[target];
-	if(pred == actual){
-	    correct++;
-	}
+var renderizarAmostras = function (amostras, $el, modelo, alvo, propriedades) {
+  _.each(amostras, function (s) {
+    var propriedades_base_exemplo = _.map(propriedades, function (x) {
+      return s[x];
     });
-    return correct/total;
-}
+    $el.append(
+      "<tr><td>" +
+      propriedades_base_exemplo.join("</td><td>") +
+        "</td><td><b>" +
+        predicao(modelo, s) +
+        "</b></td><td>Atual: " +
+        s[alvo] +
+        "</td></tr>"
+    );
+  });
+};

@@ -10,11 +10,11 @@
 	src='https://www.google.com/jsapi?autoload={"modules":[{"name":"visualization","version":"1","packages":["orgchart"]}]}'></script>
     <script type="text/javascript">
  $(document).ready(function(){
-$("#fire_tennis").click(function(e){
+$("#grafico_tenis").click(function(e){
            e.preventDefault();
-           var testModel = id3(base,'jogo',propriedades);
-           drawGraph(testModel,'canvas');
-           renderSamples(amostras,$("#amostras"),testModel,'jogo',propriedades);
+           var modeloTeste = id3(base,'jogo',propriedades);
+           desenharGrafico(modeloTeste,'canvas');
+           renderizarAmostras(amostras,$("#amostras"),modeloTeste,'jogo',propriedades);
     });
 });
 
@@ -23,7 +23,7 @@ $("#fire_tennis").click(function(e){
   <body>
     <div id="main">
       <h1>Algoritmo ID3</h1>
-<a id="fire_tennis" href="#">Criar Árvore</a>
+<a id="grafico_tenis" href="#">Criar Árvore</a>
       <div id="data-container">
 	<div  id='canvas'></div>
 	<div >
